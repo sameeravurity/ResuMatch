@@ -4,6 +4,46 @@
   * TfidfVectorizer + cosine_similarity (from sklearn)
   * Sentence-transformers for better NLP (free Hugging Face model)
   * Return a match score (e.g., 82%)
+#### TF-IDF Vectorization
+TfidfVectorizer stands for:
+ * TF = Term Frequency → how often a word appears in a document
+ * IDF = Inverse Document Frequency → how rare that word is across documents
+
+It converts both the resume and JD into vectors (lists of numbers), where:
+
+  - Common words like "the", "and", "is" are down-weighted
+
+  - Important keywords like “Terraform”, “DevOps”, “Azure” are weighted higher
+
+So instead of comparing plain words, you're comparing the relative importance of words in the documents.
+
+#### Cosine Similarity
+Once TF-IDF has turned both texts into numerical vectors, we use cosine_similarity() to calculate how close those two vectors are:
+
+- Cosine similarity = angle between two vectors
+
+- Ranges from 0 (completely different) to 1 (identical)
+
+- Multiply by 100 to get a percentage match score.
+
+Example:
+
+Let’s say:
+  
+  * Resume: "Experienced in Terraform, Azure, and Kubernetes."
+  
+  * JD: "Looking for Terraform and Azure DevOps engineer."
+
+TF-IDF creates numerical vectors that capture word importance like:
+  
+  * Resume_Vector = [0.5, 0.7, 0.9, 0, 0, 0]
+  
+  * JD_Vector     = [0.6, 0.8, 0, 0.3, 0.1, 0]
+
+Then cosine_similarity() computes how similar those vectors are.
+
+Result: 82.35% match score
+
 #### Step 1: Preprocess JD
 This is done using the clean_text() function (lowercase, remove punctuation, stopwords)
 #### Step 2:
@@ -79,4 +119,5 @@ Reload the API again using the command
 ```bash
 uvicorn resume_matcher:app --reload
 ```
+Open your browser at http://127.0.0.1:8000/docs and check the API for resume and JD match.
 
