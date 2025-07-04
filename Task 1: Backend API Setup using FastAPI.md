@@ -36,16 +36,19 @@ from nltk.corpus import stopwords
 
 app = FastAPI()
 
-# Download stopwords (only needed once)
-nltk.download('stopwords')
-stop_words = set(stopwords.words('english'))
+# Download NLTK stopwords only once (avoid repeated downloads)
+try:
+    stop_words = set(stopwords.words('english'))
+except LookupError:
+    nltk.download('stopwords')
+    stop_words = set(stopwords.words('english'))
 
 uploaded_resume_text = ""
 
-# Cleaning function
+# Utility: Clean and normalize text
 def clean_text(text: str) -> str:
     text = text.lower()
-    text = re.sub(r'[^a-z\s]', '', text)  # remove symbols/numbers
+    text = re.sub(r'[^a-z\s]', '', text)  # remove symbols and numbers
     words = text.split()
     filtered = [word for word in words if word not in stop_words]
     return ' '.join(filtered)
@@ -57,36 +60,22 @@ async def upload_resume(file: UploadFile = File(...)):
     contents = await file.read()
     file_extension = file.filename.lower().split('.')[-1]
 
-    # Parse PDF
-    if file_extension == "pdf":
-        try:
+    try:
+        if file_extension == "pdf":
             with fitz.open(stream=contents, filetype="pdf") as doc:
-                text = ""
-                for page in doc:
-                    text += page.get_text()
-            uploaded_resume_text = clean_text(text)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse PDF: {e}")
-
-    # Parse DOCX
-    elif file_extension == "docx":
-        try:
+                text = "".join([page.get_text() for page in doc])
+        elif file_extension == "docx":
             doc = Document(io.BytesIO(contents))
             text = "\n".join([para.text for para in doc.paragraphs])
-            uploaded_resume_text = clean_text(text)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse DOCX: {e}")
-
-    # Parse TXT
-    elif file_extension == "txt":
-        try:
+        elif file_extension == "txt":
             text = contents.decode("utf-8", errors="ignore")
-            uploaded_resume_text = clean_text(text)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse TXT: {e}")
+        else:
+            raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported.")
 
-    else:
-        raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported.")
+        uploaded_resume_text = clean_text(text)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse and clean file: {e}")
 
     return {"filename": file.filename, "message": "Resume uploaded, cleaned, and parsed successfully."}
 
@@ -97,8 +86,9 @@ async def match_resume(job_description: str = Form(...)):
     if not uploaded_resume_text.strip():
         raise HTTPException(status_code=400, detail="No resume uploaded yet.")
 
-    resume_words = set(uploaded_resume_text.lower().split())
-    jd_words = set(job_description.lower().split())
+    cleaned_jd = clean_text(job_description)
+    resume_words = set(uploaded_resume_text.split())
+    jd_words = set(cleaned_jd.split())
 
     matched_keywords = resume_words & jd_words
     missing_keywords = jd_words - resume_words
@@ -107,9 +97,10 @@ async def match_resume(job_description: str = Form(...)):
 
     return {
         "match_score": f"{match_score:.2f}%",
-        "matched_keywords": list(matched_keywords),
-        "missing_keywords": list(missing_keywords)
+        "matched_keywords": sorted(list(matched_keywords)),
+        "missing_keywords": sorted(list(missing_keywords))
     }
+
 ```
 * Before running the API locally install PyMuPDF for extracting text from PDFs, nltk for text processing and cleaning and python-docx for extracting text from documents.
 * ```bash
